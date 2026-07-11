@@ -24,8 +24,8 @@ Touchstone (FastMCP + Starlette, one port)
 Supabase (Postgres + pgvector)  →  observations, api_keys
 ```
 
-Embeddings run locally in-process via `sentence-transformers/all-MiniLM-L6-v2`
-(384-dim, free, no OpenAI dependency).
+Embeddings run locally in-process via `fastembed` (ONNX `all-MiniLM-L6-v2`,
+384-dim, free, no torch, no OpenAI dependency).
 
 ## MCP tools
 

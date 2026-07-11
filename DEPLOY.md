@@ -54,7 +54,7 @@ railway up
 | `DATABASE_URL` | the Supabase **session pooler** URL from step 1 |
 | `ADMIN_PASSWORD` | a strong password for the `/admin` dashboard |
 | `SECRET_KEY` | `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
-| `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` (optional; default) |
+| `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` (optional; default) |
 
 Railway injects `PORT` automatically. Tuning vars (`RELEVANCE_FLOOR`, `DEDUP_THRESHOLD`, …)
 are optional overrides.
@@ -94,10 +94,8 @@ git push -u origin main
 
 ---
 
-## Note on image size (torch)
+## Note on the embedding backend
 
-The current build bundles `torch` (via `sentence-transformers`), so the image is large
-(~2 GB) and the first build is slow. Railway handles this, but if you hit build-size or
-memory limits — or want faster cold starts — swap the embedding backend to
-[`fastembed`](https://github.com/qdrant/fastembed) (ONNX, same MiniLM model, ~10× lighter,
-no torch). It's an isolated change to `touchstone/embeddings.py`.
+Embeddings use [`fastembed`](https://github.com/qdrant/fastembed) — ONNX Runtime, no
+torch — so the image is small (~a few hundred MB) and cold starts are fast. The MiniLM
+model (~90 MB) downloads on first use and is cached for the container's lifetime.

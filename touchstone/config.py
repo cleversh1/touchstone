@@ -13,7 +13,9 @@ load_dotenv()
 
 # --- Core ---
 DATABASE_URL: str = os.environ.get("DATABASE_URL", "")
-EMBEDDING_MODEL: str = os.environ.get("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+EMBEDDING_MODEL: str = os.environ.get(
+    "EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
+)
 PORT: int = int(os.environ.get("PORT", "8080"))
 
 # --- Admin dashboard auth ---
