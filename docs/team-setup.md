@@ -4,7 +4,16 @@ Touchstone gives Claude a shared memory of our team's brand voice and process.
 Once it's set up, Claude checks our shared notes before helping with marketing work,
 and saves anything new it learns so the rest of us get it too.
 
-You'll need two things from Charlie:
+**Two ways to use it — pick the one that fits your setup:**
+
+- **Option A — Full setup (recommended).** Claude connects to Touchstone directly, so
+  it recalls the rules automatically *and* saves new ones. Needs Claude Desktop, or a
+  paid Claude plan (Pro/Team/Max) that supports custom connectors. Steps 1–3 below.
+- **Option B — Read-only link.** Can't add a connector (free plan, ChatGPT, or any other
+  tool)? Open a link, copy the current rules, paste them into your chat. No login, no
+  install. Jump to ["No connector?"](#no-connector-read-only-rules-link) at the bottom.
+
+For **Option A** you'll need two things from Charlie:
 - **Your personal key** (sent to you privately) — looks like `b096c226-4e6a-...`
 - The server URL: `https://web-production-18aa.up.railway.app/mcp`
 
@@ -82,6 +91,26 @@ In a new chat (inside the Project), ask:
 
 Claude should call `recall` and show our V1 rules (banned words, formatting, length,
 etc.). If you see those surfaced before its answer — you're all set. ✅
+
+---
+
+## No connector? Read-only rules link
+
+If your plan or tool can't add a connector (free Claude, ChatGPT, or anything else),
+you can still use the rules — just read-only.
+
+1. Open the share link Charlie sends you: **`<SHARE_LINK>`**
+   *(Charlie: this is `https://web-production-18aa.up.railway.app/rules/<SHARE_TOKEN>` —
+   share it via Slack, not in the repo.)*
+2. Click **Copy all (Markdown)**.
+3. Paste it into your chat — either at the top of a new conversation, or into your
+   ChatGPT/Claude custom instructions, e.g. "Follow these brand rules: [paste]".
+
+The page always reflects the latest rules, so re-copy it whenever you start something new.
+
+What you **don't** get this way: automatic recall, and saving new rules back to the team
+(that needs the full connector setup above). Treat this as a quick reference, not a
+replacement for Option A.
 
 ---
 
