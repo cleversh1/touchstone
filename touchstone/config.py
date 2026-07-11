@@ -24,6 +24,12 @@ ADMIN_PASSWORD: str = os.environ.get("ADMIN_PASSWORD", "")
 # Used to sign the session cookie. MUST be set to a long random value in prod.
 SECRET_KEY: str = os.environ.get("SECRET_KEY", "dev-insecure-change-me")
 
+# Read-only share link for the exportable "current rules" page. When set, the
+# rules are viewable (no login) at /rules/<SHARE_TOKEN> — useful for teammates on
+# tools/plans that can't connect over MCP. Left empty, the share route is disabled
+# (returns 404), so the feature is off until you opt in with a long random token.
+SHARE_TOKEN: str = os.environ.get("SHARE_TOKEN", "")
+
 # --- Retrieval / storage tuning ---
 # Observations shorter than this (after trimming) are rejected by store().
 MIN_OBSERVATION_LENGTH: int = int(os.environ.get("MIN_OBSERVATION_LENGTH", "15"))

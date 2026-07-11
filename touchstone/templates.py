@@ -20,6 +20,9 @@ header { display: flex; align-items: baseline; justify-content: space-between; g
 h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
 h1 .dot { color: var(--accent); }
 .sub { color: var(--muted); font-size: 13px; }
+.headright { display: flex; align-items: center; gap: 16px; }
+.exp { color: var(--muted); font-size: 12.5px; }
+.exp a { color: var(--accent); }
 .controls {
   display: flex; flex-wrap: wrap; gap: 10px; margin: 22px 0 16px;
 }
@@ -109,7 +112,14 @@ DASHBOARD_HTML = f"""<!doctype html>
       <h1>Touchstone<span class="dot">.</span></h1>
       <div class="sub">Shared team memory — browse, search, and prune observations.</div>
     </div>
-    <a href="/admin/logout">Sign out</a>
+    <div class="headright">
+      <span class="exp">Export:
+        <a href="/admin/api/export?format=md" download>Markdown</a> ·
+        <a href="/admin/api/export?format=json" download>JSON</a> ·
+        <a href="/admin/api/export?format=csv" download>CSV</a>
+      </span>
+      <a href="/admin/logout">Sign out</a>
+    </div>
   </header>
 
   <div class="controls">

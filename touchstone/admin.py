@@ -18,7 +18,7 @@ from starlette.responses import (
     Response,
 )
 
-from . import config, db
+from . import config, db, export
 from .core import mcp
 from .templates import DASHBOARD_HTML, LOGIN_HTML
 
@@ -107,6 +107,24 @@ async def admin_list(request: Request) -> Response:
         for r in rows
     ]
     return JSONResponse({"observations": observations, "count": len(observations)})
+
+
+@mcp.custom_route("/admin/api/export", methods=["GET"])
+async def admin_export(request: Request) -> Response:
+    if not _is_authed(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+
+    fmt = request.query_params.get("format", "md")
+    if fmt not in export.FORMATS:
+        return JSONResponse({"error": f"unknown format {fmt!r}"}, status_code=400)
+
+    rows = await run_in_threadpool(export.all_rows)
+    body, content_type, filename = export.render(fmt, rows)
+    return Response(
+        body,
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @mcp.custom_route("/admin/api/observations/delete", methods=["POST"])

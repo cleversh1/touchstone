@@ -55,6 +55,7 @@ railway up
 | `ADMIN_PASSWORD` | a strong password for the `/admin` dashboard |
 | `SECRET_KEY` | `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
 | `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` (optional; default) |
+| `SHARE_TOKEN` | optional — a long random string. When set, teammates who can't connect over MCP can view/copy the current rules at `/rules/<SHARE_TOKEN>`. Leave unset to disable. |
 
 Railway injects `PORT` automatically. Tuning vars (`RELEVANCE_FLOOR`, `DEDUP_THRESHOLD`, …)
 are optional overrides.

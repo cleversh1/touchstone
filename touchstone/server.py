@@ -23,6 +23,7 @@ from .core import mcp
 # Registering the tool and admin-route modules attaches them to `mcp`.
 from . import tools  # noqa: F401  (side effect: registers recall/store/delete)
 from . import admin  # noqa: F401  (side effect: registers /admin routes)
+from . import share  # noqa: F401  (side effect: registers /rules/<token> route)
 
 MCP_PATH = "/mcp"
 
