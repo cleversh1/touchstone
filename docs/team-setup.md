@@ -14,7 +14,7 @@ and saves anything new it learns so the rest of us get it too.
   install. Jump to ["No connector?"](#no-connector-read-only-rules-link) at the bottom.
 
 For **Option A** you'll need two things from Charlie:
-- **Your personal key** (sent to you privately) — looks like `b096c226-4e6a-...`
+- **Your personal key** (sent to you privately) — a UUID like `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`
 - The server URL: `https://web-production-18aa.up.railway.app/mcp`
 
 ---
