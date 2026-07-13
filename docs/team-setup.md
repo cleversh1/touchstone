@@ -7,8 +7,8 @@ and saves anything new it learns so the rest of us get it too.
 **Two ways to use it — pick the one that fits your setup:**
 
 - **Option A — Full setup (recommended).** Claude connects to Touchstone directly, so
-  it recalls the rules automatically *and* saves new ones. Needs Claude Desktop, or a
-  paid Claude plan (Pro/Team/Max) that supports custom connectors. Steps 1–3 below.
+  it recalls the rules automatically *and* saves new ones. Works in **Claude Desktop**
+  or **Claude Code** (Claude.ai web isn't supported — see below). Steps 1–3 below.
 - **Option B — Read-only link.** Can't add a connector (free plan, ChatGPT, or any other
   tool)? Open a link, copy the current rules, paste them into your chat. No login, no
   install. Jump to ["No connector?"](#no-connector-read-only-rules-link) at the bottom.
@@ -21,34 +21,58 @@ For **Option A** you'll need two things from Charlie:
 
 ## 1. Connect Touchstone to Claude
 
-### Claude Desktop (recommended)
+Your key always goes in an `Authorization` header — never in the URL. And don't use
+Settings → Connectors → **"Add custom connector"**: that flow requires OAuth, which our
+static-key server doesn't support, so it will fail.
 
-1. Open **Claude → Settings → Developer → Edit Config**
-   (this opens a file called `claude_desktop_config.json`).
-2. Paste this in. If the file already has an `mcpServers` block, add `team-memory` inside it.
+### Claude Desktop (recommended for most)
+
+Requires Node.js (for the `mcp-remote` bridge — check with `node --version`; if missing,
+install from <https://nodejs.org> or `brew install node`).
+
+1. Open **Claude → Settings → Developer → Edit Config** (opens `claude_desktop_config.json`).
+2. Add `team-memory` inside `mcpServers` (keep any servers already there).
    **Replace `PASTE-YOUR-KEY-HERE` with the key Charlie sent you.**
 
    ```json
    {
      "mcpServers": {
        "team-memory": {
-         "url": "https://web-production-18aa.up.railway.app/mcp",
-         "headers": { "Authorization": "Bearer PASTE-YOUR-KEY-HERE" }
+         "command": "npx",
+         "args": [
+           "-y", "mcp-remote",
+           "https://web-production-18aa.up.railway.app/mcp",
+           "--header", "Authorization: Bearer PASTE-YOUR-KEY-HERE"
+         ]
        }
      }
    }
    ```
 
-3. Save the file, then **fully quit Claude and reopen it** (not just close the window).
-4. You should now see **team-memory** listed under connectors/tools, with `recall` and
-   `store`. Approve/enable it if Claude asks.
+3. Save, then **fully quit Claude and reopen it** (⌘Q — not just closing the window).
+4. `team-memory` appears with `recall` / `store` / `delete`. First launch spawns
+   `npx mcp-remote`, so give it a few seconds.
 
-### Claude.ai (web)
+### Claude Code (CLI) — cleanest if you use it
 
-1. **Settings → Connectors → Add custom connector.**
-2. Paste the URL above and your key as the Bearer token.
-3. If the web form doesn't have a place to enter a token/header, use **Claude Desktop**
-   instead (above) — it's the reliable path for our key-based setup.
+Claude Code speaks to a header-authenticated remote server natively — no bridge, no OAuth.
+One command (replace the key):
+
+```bash
+claude mcp add --transport http team-memory \
+  https://web-production-18aa.up.railway.app/mcp \
+  --header "Authorization: Bearer PASTE-YOUR-KEY-HERE" \
+  --scope user
+```
+
+`--scope user` makes it available in every project (drop it to add only to the current
+directory). Verify with `claude mcp list` — `team-memory` should show as connected.
+
+### Claude.ai (web) — not supported
+
+Web custom connectors are OAuth-only and won't accept a static Bearer key, so this setup
+doesn't work there. Use Claude Desktop or Claude Code above — or, for read-only access,
+the share link in ["No connector?"](#no-connector-read-only-rules-link) below.
 
 ---
 
