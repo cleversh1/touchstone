@@ -45,6 +45,9 @@ RELEVANCE_FLOOR: float = float(os.environ.get("RELEVANCE_FLOOR", "0.25"))
 DEFAULT_RECALL_LIMIT: int = int(os.environ.get("DEFAULT_RECALL_LIMIT", "5"))
 # Hard cap so a caller can't request an unbounded number.
 MAX_RECALL_LIMIT: int = int(os.environ.get("MAX_RECALL_LIMIT", "25"))
+# Default and hard cap for list_observations(), which returns the complete set
+# (no semantic ranking) so a caller can load an entire rule category at once.
+MAX_LIST_LIMIT: int = int(os.environ.get("MAX_LIST_LIMIT", "500"))
 
 # Embedding dimensionality for all-MiniLM-L6-v2. Must match the DB vector() column.
 EMBEDDING_DIM: int = 384

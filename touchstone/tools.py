@@ -1,4 +1,4 @@
-"""The MCP tools exposed to agents: recall, store, and delete.
+"""The MCP tools exposed to agents: recall, list_observations, store, and delete.
 
 Auth: identity is derived from the Bearer token on the incoming HTTP request.
 The ASGI middleware (see server.py) already rejects unauthenticated calls to
@@ -8,7 +8,7 @@ and lets store() stamp `stored_by` correctly.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Optional
 
 from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import get_http_headers
@@ -64,6 +64,48 @@ def recall(query: str, limit: int = config.DEFAULT_RECALL_LIMIT) -> dict:
         if float(row["relevance"]) >= config.RELEVANCE_FLOOR
     ]
     return {"observations": observations}
+
+
+@mcp.tool
+def list_observations(
+    category: Optional[str] = None,
+    limit: int = config.MAX_LIST_LIMIT,
+) -> dict:
+    """List stored observations in full — no semantic ranking, no relevance floor.
+
+    Use this when you need the *complete* set of observations, not the few most
+    relevant to a query. The main case is loading an entire rule category at once
+    (e.g. category="brand_voice" to load every brand-voice rule), where recall()'s
+    top-k relevance ranking would silently omit a rule a draft happens not to be
+    semantically near. Newest first.
+
+    Args:
+        category: Optional filter. One of brand_voice, process, decision,
+            customer_insight, other. Omit to list across all categories.
+        limit: Maximum observations to return (default and hard cap = MAX_LIST_LIMIT).
+    """
+    _contributor_name()  # authorize
+
+    if category is not None and category not in config.CATEGORIES:
+        raise ToolError(
+            f"Invalid category {category!r}. Must be one of: "
+            f"{', '.join(config.CATEGORIES)}."
+        )
+
+    limit = max(1, min(int(limit), config.MAX_LIST_LIMIT))
+    rows = db.list_observations(category=category, limit=limit)
+
+    observations = [
+        {
+            "id": str(row["id"]),
+            "text": row["text"],
+            "category": row["category"],
+            "stored_by": row["stored_by"],
+            "stored_at": db.iso(row["created_at"]),
+        }
+        for row in rows
+    ]
+    return {"observations": observations, "count": len(observations)}
 
 
 @mcp.tool
