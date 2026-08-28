@@ -138,7 +138,7 @@ async def admin_delete(request: Request) -> Response:
         return JSONResponse({"error": "invalid json"}, status_code=400)
 
     obs_id = str(body.get("id", ""))
-    deleted = await run_in_threadpool(db.delete_observation, obs_id)
-    if not deleted:
+    deprecated = await run_in_threadpool(db.deprecate_observation, obs_id)
+    if not deprecated:
         return JSONResponse({"error": "not found"}, status_code=404)
-    return JSONResponse({"status": "deleted"})
+    return JSONResponse({"status": "deprecated"})

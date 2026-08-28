@@ -190,13 +190,13 @@ function render(items) {{
         <span>by <b>${{esc(o.stored_by)}}</b></span>
         <span>${{esc(fmtDate(o.created_at))}}</span>
         ${{o.source_summary ? `<span class="src">“${{esc(o.source_summary)}}”</span>` : ""}}
-        <button class="del" onclick="del('${{o.id}}')">Delete</button>
+        <button class="del" onclick="del('${{o.id}}')">Deprecate</button>
       </div>
     </div>`).join("");
 }}
 
 async function del(id) {{
-  if (!confirm("Delete this observation? This cannot be undone.")) return;
+  if (!confirm("Deprecate this observation? It will remain in the audit trail.")) return;
   const r = await fetch("/admin/api/observations/delete", {{
     method: "POST",
     headers: {{ "Content-Type": "application/json" }},
@@ -206,7 +206,7 @@ async function del(id) {{
     const el = document.querySelector(`.card[data-id="${{id}}"]`);
     if (el) el.remove();
   }} else {{
-    alert("Delete failed.");
+    alert("Deprecation failed.");
   }}
 }}
 

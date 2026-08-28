@@ -9,14 +9,24 @@ cached in-process so repeat requests within a process are O(1).
 from __future__ import annotations
 
 import threading
+import time
+from dataclasses import dataclass
 from typing import Optional
 
 import bcrypt
 
-from . import db
+from . import config, db
 
-# raw_key -> display name, populated after a successful verification.
-_cache: dict[str, str] = {}
+@dataclass(frozen=True)
+class Principal:
+    """The identity and permissions attached to one verified API key."""
+
+    name: str
+    scopes: frozenset[str]
+
+
+# raw_key -> (principal, expiry), populated after a successful verification.
+_cache: dict[str, tuple[Principal, float]] = {}
 _cache_lock = threading.Lock()
 
 
@@ -24,21 +34,35 @@ def hash_key(raw_key: str) -> str:
     return bcrypt.hashpw(raw_key.encode(), bcrypt.gensalt()).decode()
 
 
-def verify_key(raw_key: str) -> Optional[str]:
-    """Return the contributor's display name for a valid key, else None."""
+def verify_key(raw_key: str) -> Optional[Principal]:
+    """Return a valid key's principal, else None.
+
+    The cache has a short TTL so revoking a key takes effect without requiring a
+    service restart. A cache must never be the durable authority for access.
+    """
     if not raw_key:
         return None
 
     cached = _cache.get(raw_key)
     if cached is not None:
-        return cached
+        principal, expires_at = cached
+        if time.monotonic() < expires_at:
+            return principal
+        with _cache_lock:
+            _cache.pop(raw_key, None)
 
     for key in db.get_active_keys():
         try:
             if bcrypt.checkpw(raw_key.encode(), key["key_hash"].encode()):
                 with _cache_lock:
-                    _cache[raw_key] = key["name"]
-                return key["name"]
+                    principal = Principal(
+                        name=key["name"], scopes=frozenset(key["scopes"] or [])
+                    )
+                    _cache[raw_key] = (
+                        principal,
+                        time.monotonic() + config.API_KEY_CACHE_SECONDS,
+                    )
+                return principal
         except ValueError:
             # Malformed stored hash — skip it rather than failing the request.
             continue

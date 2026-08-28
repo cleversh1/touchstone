@@ -18,7 +18,8 @@ Team member's Claude
 Touchstone (FastMCP + Starlette, one port)
   ├── recall(query)  → embed → pgvector search → top-k above relevance floor
   ├── store(obs)     → embed → dedup check → insert
-  ├── delete(id)     → remove
+  ├── list_active_rules(platform) → complete, scoped rule set + version
+  └── deprecate_rule(id) → preserve history while retiring a rule
   └── /admin         → dashboard (password-protected)
       ▼
 Supabase (Postgres + pgvector)  →  observations, api_keys
@@ -31,9 +32,11 @@ Embeddings run locally in-process via `fastembed` (ONNX `all-MiniLM-L6-v2`,
 
 | Tool | When | Input | Output |
 |------|------|-------|--------|
-| `recall` | Start of a task | `query: str`, `limit: int = 5` | `observations[]` (id, text, stored_by, stored_at, relevance) |
-| `store` | End of a task / on learning | `observation: str`, `category: enum`, `source_summary: str` | `id`, `status` (`stored` \| `duplicate`) |
-| `delete` | Corrections | `id: str` | `status: deleted` |
+| `recall` | Shared-memory lookup | `query: str`, `limit: int = 5` | semantically relevant observations |
+| `list_observations` | Admin/complete category read | `category?`, `limit?` | complete observations, newest first |
+| `list_active_rules` | Vercel content review | `platform`, `post_type?` | active scoped rules + `rule_set_version` |
+| `store` | Add a durable observation | observation, category, optional rule metadata | `id`, `status` |
+| `deprecate_rule` | Retire a rule without erasing history | `id`, `replacement_id?` | `status: deprecated` |
 
 `category` ∈ `brand_voice · process · decision · customer_insight · other`.
 
@@ -44,7 +47,10 @@ Embeddings run locally in-process via `fastembed` (ONNX `all-MiniLM-L6-v2`,
   `status: "duplicate"`.
 - **Relevance floor** — `recall` drops anything below `RELEVANCE_FLOOR` so unrelated
   tasks surface nothing rather than weak noise.
-- **Admin auth** — single `ADMIN_PASSWORD` → signed session cookie. No per-user accounts.
+- **Scoped keys** — issue a narrow `rules:read` key to the Vercel Slack reviewer;
+  only `rules:admin` keys can change brand rules.
+- **Rule lifecycle** — brand rules carry a scope, optional post type, kind,
+  status, and individual revision. Deprecated rules stay in the audit trail.
 
 All thresholds are env vars, tunable in production without a redeploy.
 
@@ -90,6 +96,12 @@ Add to their Claude MCP config:
 Then paste the system-prompt instructions from
 [`docs/system_prompt.md`](docs/system_prompt.md) into their Claude project.
 
+## Connecting the Vercel Slack reviewer
+
+Use the dedicated, read-only `list_active_rules` tool and a service key scoped to
+`rules:read`. The full integration snippet and required Vercel environment
+variables are in [`docs/vercel-agent.md`](docs/vercel-agent.md).
+
 ## Admin CLI
 
 ```bash
@@ -102,5 +114,5 @@ python manage.py import-csv --file seed.csv  # bulk load (dedup-aware)
 
 ## Out of scope for v1
 
-Private observations, RBAC, editing (delete + re-add), Slack/email integrations,
-auto-summarisation, usage analytics, rate limiting.
+Private observations, Slack/email integrations, auto-summarisation, usage
+analytics, and rate limiting.

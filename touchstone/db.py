@@ -8,6 +8,8 @@ the auth middleware wraps calls in anyio.to_thread).
 
 from __future__ import annotations
 
+import hashlib
+import json
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -75,15 +77,25 @@ def insert_observation(
     category: str,
     stored_by: str,
     source_summary: str,
+    scope: str = "all",
+    post_type: Optional[str] = None,
+    kind: str = "guidance",
+    rule_version: int = 1,
+    replaced_by: Optional[str] = None,
 ) -> str:
     with get_pool().connection() as conn:
         row = conn.execute(
             """
-            INSERT INTO observations (text, embedding, category, stored_by, source_summary)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO observations
+                (text, embedding, category, stored_by, source_summary,
+                 scope, post_type, kind, rule_version, replaced_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
             """,
-            (text, embedding, category, stored_by, source_summary),
+            (
+                text, embedding, category, stored_by, source_summary,
+                scope, post_type, kind, rule_version, replaced_by,
+            ),
         ).fetchone()
         conn.commit()
         return str(row["id"])
@@ -108,13 +120,26 @@ def search_nearest(embedding: np.ndarray, limit: int) -> list[dict[str, Any]]:
         return rows
 
 
-def delete_observation(obs_id: str) -> bool:
+def deprecate_observation(obs_id: str, replacement_id: Optional[str] = None) -> bool:
     try:
         parsed = uuid.UUID(obs_id)
     except (ValueError, AttributeError):
         return False
     with get_pool().connection() as conn:
-        cur = conn.execute("DELETE FROM observations WHERE id = %s", (parsed,))
+        replacement = None
+        if replacement_id:
+            try:
+                replacement = uuid.UUID(replacement_id)
+            except (ValueError, AttributeError):
+                return False
+        cur = conn.execute(
+            """
+            UPDATE observations
+            SET status = 'deprecated', replaced_by = COALESCE(%s, replaced_by)
+            WHERE id = %s AND status = 'active'
+            """,
+            (replacement, parsed),
+        )
         conn.commit()
         return cur.rowcount > 0
 
@@ -146,7 +171,8 @@ def list_observations(
 
     query = sql.SQL(
         """
-        SELECT id, text, category, stored_by, source_summary, created_at
+        SELECT id, text, category, stored_by, source_summary, scope, post_type,
+               kind, status, rule_version, replaced_by, created_at
         FROM observations
         {where}
         ORDER BY created_at DESC
@@ -166,15 +192,59 @@ def distinct_contributors() -> list[str]:
         return [r["stored_by"] for r in rows]
 
 
+def list_active_rules(platform: str, post_type: Optional[str] = None) -> list[dict[str, Any]]:
+    """Return every active brand rule that applies to a platform/post type."""
+    clauses: list[sql.Composable] = [
+        sql.SQL("category = 'brand_voice'"),
+        sql.SQL("status = 'active'"),
+        sql.SQL("scope IN ('all', %s)"),
+    ]
+    params: list[Any] = [platform]
+    if post_type:
+        clauses.append(sql.SQL("(post_type IS NULL OR post_type = 'all' OR post_type = %s)"))
+        params.append(post_type)
+    else:
+        clauses.append(sql.SQL("(post_type IS NULL OR post_type = 'all')"))
+
+    query = sql.SQL(
+        """
+        SELECT id, text, category, stored_by, source_summary, scope, post_type,
+               kind, status, rule_version, replaced_by, created_at
+        FROM observations
+        WHERE {where}
+        ORDER BY scope DESC, post_type NULLS FIRST, created_at ASC
+        """
+    ).format(where=sql.SQL(" AND ").join(clauses))
+    with get_pool().connection() as conn:
+        return conn.execute(query, params).fetchall()
+
+
+def active_rule_set_version(rows: list[dict[str, Any]]) -> str:
+    """A stable fingerprint of the exact active rule content used by a review."""
+    payload = [
+        {
+            "id": str(row["id"]),
+            "text": row["text"],
+            "scope": row["scope"],
+            "post_type": row["post_type"],
+            "kind": row["kind"],
+            "rule_version": row["rule_version"],
+        }
+        for row in rows
+    ]
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()[:16]
+
+
 # --------------------------------------------------------------------------
 # API keys
 # --------------------------------------------------------------------------
 
-def insert_api_key(name: str, key_hash: str) -> str:
+def insert_api_key(name: str, key_hash: str, scopes: list[str]) -> str:
     with get_pool().connection() as conn:
         row = conn.execute(
-            "INSERT INTO api_keys (name, key_hash) VALUES (%s, %s) RETURNING id",
-            (name, key_hash),
+            "INSERT INTO api_keys (name, key_hash, scopes) VALUES (%s, %s, %s) RETURNING id",
+            (name, key_hash, scopes),
         ).fetchone()
         conn.commit()
         return str(row["id"])
@@ -183,14 +253,14 @@ def insert_api_key(name: str, key_hash: str) -> str:
 def get_active_keys() -> list[dict[str, Any]]:
     with get_pool().connection() as conn:
         return conn.execute(
-            "SELECT id, name, key_hash FROM api_keys WHERE active = true"
+            "SELECT id, name, key_hash, scopes FROM api_keys WHERE active = true"
         ).fetchall()
 
 
 def list_api_keys() -> list[dict[str, Any]]:
     with get_pool().connection() as conn:
         return conn.execute(
-            "SELECT id, name, active, created_at FROM api_keys ORDER BY created_at"
+            "SELECT id, name, scopes, active, created_at FROM api_keys ORDER BY created_at"
         ).fetchall()
 
 

@@ -10,3 +10,6 @@ env/
 .DS_Store
 .pytest_cache/
 .ruff_cache/
+_to_delete/
+check_prod_schema.py
+push-v0.2.sh

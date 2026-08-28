@@ -48,6 +48,7 @@ MAX_RECALL_LIMIT: int = int(os.environ.get("MAX_RECALL_LIMIT", "25"))
 # Default and hard cap for list_observations(), which returns the complete set
 # (no semantic ranking) so a caller can load an entire rule category at once.
 MAX_LIST_LIMIT: int = int(os.environ.get("MAX_LIST_LIMIT", "500"))
+API_KEY_CACHE_SECONDS: int = int(os.environ.get("API_KEY_CACHE_SECONDS", "300"))
 
 # Embedding dimensionality for all-MiniLM-L6-v2. Must match the DB vector() column.
 EMBEDDING_DIM: int = 384
@@ -59,6 +60,16 @@ CATEGORIES: tuple[str, ...] = (
     "decision",
     "customer_insight",
     "other",
+)
+
+RULE_SCOPES: tuple[str, ...] = ("all", "announcements", "linkedin", "substack")
+RULE_KINDS: tuple[str, ...] = ("required", "guidance", "example")
+RULE_STATUSES: tuple[str, ...] = ("active", "deprecated")
+KEY_SCOPES: tuple[str, ...] = (
+    "rules:read",
+    "observations:read",
+    "observations:write",
+    "rules:admin",
 )
 
 

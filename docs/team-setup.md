@@ -91,13 +91,13 @@ At the start of every task:
 - If nothing relevant is returned, proceed normally.
 
 During and after every task:
-- If the user corrects your tone, word choice, or structure — store that as a
-  brand_voice observation.
+- Never store a brand_voice rule automatically. Treat corrections as candidate
+  evidence for a human rule editor.
 - If the user describes a process step or workflow — store that as a process observation.
 - If a decision is made (about strategy, messaging, audience, etc.) — store that as a
   decision observation.
-- If you infer a convention from the user's edits or preferences — store it with a
-  source_summary explaining what you observed.
+- Do not infer and store a convention from one edit or preference. Store only an
+  explicit, durable team decision with a source_summary explaining who approved it.
 
 Only store things that would be useful to a different team member doing a similar task.
 Don't store ephemeral task details or content specific to one piece of work.

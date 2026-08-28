@@ -87,7 +87,10 @@ def build_app():
                 SessionMiddleware,
                 secret_key=config.SECRET_KEY,
                 same_site="lax",
-                https_only=False,  # set True behind HTTPS-terminating proxy if desired
+                # Railway terminates TLS before this app. The browser still reaches
+                # the public service over HTTPS, so never allow the admin cookie on
+                # a plaintext request in production.
+                https_only=True,
             )
         ],
     )

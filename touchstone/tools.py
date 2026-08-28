@@ -1,4 +1,4 @@
-"""The MCP tools exposed to agents: recall, list_observations, store, and delete.
+"""The MCP tools exposed to agents.
 
 Auth: identity is derived from the Bearer token on the incoming HTTP request.
 The ASGI middleware (see server.py) already rejects unauthenticated calls to
@@ -18,16 +18,23 @@ from . import auth, config, db, embeddings
 from .core import mcp
 
 
-def _contributor_name() -> str:
-    """Resolve the authenticated contributor's display name, or fail closed."""
+def _principal():
+    """Resolve the authenticated principal, or fail closed."""
     # include_all=True is required: FastMCP strips sensitive headers (including
     # Authorization) from the default get_http_headers() result.
     headers = get_http_headers(include_all=True)  # keys are lower-cased by FastMCP
     token = auth.bearer_token(headers.get("authorization", ""))
-    name = auth.verify_key(token)
-    if not name:
+    principal = auth.verify_key(token)
+    if not principal:
         raise ToolError("Unauthorized: missing or invalid API key.")
-    return name
+    return principal
+
+
+def _require_scope(scope: str):
+    principal = _principal()
+    if scope not in principal.scopes:
+        raise ToolError(f"Forbidden: this API key requires the {scope!r} scope.")
+    return principal
 
 
 @mcp.tool
@@ -41,7 +48,7 @@ def recall(query: str, limit: int = config.DEFAULT_RECALL_LIMIT) -> dict:
         query: A short description of the task or question, used for retrieval.
         limit: Maximum number of observations to return (default 5).
     """
-    _contributor_name()  # authorize
+    _require_scope("observations:read")
 
     query = (query or "").strip()
     if not query:
@@ -84,7 +91,7 @@ def list_observations(
             customer_insight, other. Omit to list across all categories.
         limit: Maximum observations to return (default and hard cap = MAX_LIST_LIMIT).
     """
-    _contributor_name()  # authorize
+    _require_scope("observations:read")
 
     if category is not None and category not in config.CATEGORIES:
         raise ToolError(
@@ -102,6 +109,11 @@ def list_observations(
             "category": row["category"],
             "stored_by": row["stored_by"],
             "stored_at": db.iso(row["created_at"]),
+            "scope": row["scope"],
+            "post_type": row["post_type"],
+            "kind": row["kind"],
+            "status": row["status"],
+            "rule_version": row["rule_version"],
         }
         for row in rows
     ]
@@ -115,6 +127,10 @@ def store(
         "brand_voice", "process", "decision", "customer_insight", "other"
     ],
     source_summary: str = "",
+    scope: Literal["all", "announcements", "linkedin", "substack"] = "all",
+    post_type: Optional[str] = None,
+    kind: Literal["required", "guidance", "example"] = "guidance",
+    rule_version: int = 1,
 ) -> dict:
     """Store a durable team observation for future recall by any team member.
 
@@ -125,13 +141,18 @@ def store(
         observation: The fact, convention, decision, or process note to store.
         category: One of brand_voice, process, decision, customer_insight, other.
         source_summary: Brief note on what prompted this (e.g. "User corrected draft tone").
+        scope: Platform the rule applies to. Use "all" for shared rules.
+        post_type: Optional narrower content type, e.g. "builder_product".
+        kind: required for factual/mechanical checks, guidance for editorial advice,
+            or example for non-binding inspiration.
+        rule_version: Revision number for this individual rule.
 
     Returns:
         The stored observation's id and a status of "stored", or — if a
         near-identical observation already exists — the existing id with
         status "duplicate".
     """
-    name = _contributor_name()
+    principal = _require_scope("observations:write")
 
     observation = (observation or "").strip()
     if len(observation) < config.MIN_OBSERVATION_LENGTH:
@@ -145,6 +166,17 @@ def store(
             f"Invalid category {category!r}. Must be one of: "
             f"{', '.join(config.CATEGORIES)}."
         )
+    if scope not in config.RULE_SCOPES:
+        raise ToolError(f"Invalid scope {scope!r}.")
+    if kind not in config.RULE_KINDS:
+        raise ToolError(f"Invalid rule kind {kind!r}.")
+    if rule_version < 1:
+        raise ToolError("rule_version must be at least 1.")
+
+    # Brand rules govern every reviewer. Only a rule administrator may alter
+    # them; ordinary agent learnings remain in the other shared-memory categories.
+    if category == "brand_voice" and "rules:admin" not in principal.scopes:
+        raise ToolError("Forbidden: storing brand_voice rules requires 'rules:admin'.")
 
     vector = embeddings.embed(observation)
 
@@ -158,22 +190,61 @@ def store(
         text=observation,
         embedding=vector,
         category=category,
-        stored_by=name,
+        stored_by=principal.name,
         source_summary=source_summary.strip(),
+        scope=scope,
+        post_type=post_type.strip() if post_type else None,
+        kind=kind,
+        rule_version=rule_version,
     )
     return {"id": obs_id, "status": "stored"}
 
 
 @mcp.tool
-def delete(id: str) -> dict:
-    """Delete a stored observation by id. Intended for admin use / corrections.
+def list_active_rules(
+    platform: Literal["announcements", "linkedin", "substack"],
+    post_type: Optional[str] = None,
+) -> dict:
+    """Load the complete active rule set for one platform.
+
+    This is the Vercel content-review bot's required read path. It filters by
+    platform and optional post type, returns no semantic ranking, and includes
+    a stable rule_set_version that must be stored with every review.
+    """
+    _require_scope("rules:read")
+    rows = db.list_active_rules(platform=platform, post_type=post_type)
+    rules = [
+        {
+            "id": str(row["id"]),
+            "text": row["text"],
+            "scope": row["scope"],
+            "post_type": row["post_type"],
+            "kind": row["kind"],
+            "rule_version": row["rule_version"],
+            "source_summary": row["source_summary"],
+        }
+        for row in rows
+    ]
+    return {
+        "platform": platform,
+        "post_type": post_type,
+        "rule_set_version": db.active_rule_set_version(rows),
+        "rules": rules,
+        "count": len(rules),
+    }
+
+
+@mcp.tool
+def deprecate_rule(id: str, replacement_id: Optional[str] = None) -> dict:
+    """Mark a brand rule deprecated while preserving its history.
 
     Args:
-        id: The observation id to delete.
+        id: The active rule id to deprecate.
+        replacement_id: Optional replacement rule id, after it has been stored.
     """
-    _contributor_name()  # authorize
+    _require_scope("rules:admin")
 
-    deleted = db.delete_observation(id)
-    if not deleted:
-        raise ToolError(f"No observation found with id {id!r}.")
-    return {"status": "deleted"}
+    deprecated = db.deprecate_observation(id, replacement_id)
+    if not deprecated:
+        raise ToolError(f"No active observation found with id {id!r}.")
+    return {"status": "deprecated", "id": id, "replacement_id": replacement_id}

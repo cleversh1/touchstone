@@ -31,11 +31,20 @@ def cmd_init_db(_args) -> int:
 
 def cmd_create_key(args) -> int:
     raw_key = str(uuid.uuid4())
-    key_id = db.insert_api_key(args.name, auth.hash_key(raw_key))
+    scopes = [s.strip() for s in args.scopes.split(",") if s.strip()]
+    invalid = sorted(set(scopes) - set(config.KEY_SCOPES))
+    if invalid:
+        print(f"Unknown scope(s): {', '.join(invalid)}", file=sys.stderr)
+        return 2
+    if not scopes:
+        print("At least one scope is required.", file=sys.stderr)
+        return 2
+    key_id = db.insert_api_key(args.name, auth.hash_key(raw_key), scopes)
     print(f"Created key for {args.name!r} (id: {key_id}).")
     print("\nSend this key to the team member — it is shown ONCE and not recoverable:\n")
     print(f"    {raw_key}\n")
     print("They add it to their Claude MCP config as:")
+    print(f"Scopes: {', '.join(scopes)}")
     print(f'    "Authorization": "Bearer {raw_key}"')
     return 0
 
@@ -103,6 +112,11 @@ def main() -> int:
 
     p_create = sub.add_parser("create-key", help="Generate an API key for a team member")
     p_create.add_argument("--name", required=True, help="Team member's display name")
+    p_create.add_argument(
+        "--scopes",
+        default="rules:read,observations:read,observations:write,rules:admin",
+        help="Comma-separated scopes; use rules:read for the Vercel review bot",
+    )
     p_create.set_defaults(func=cmd_create_key)
 
     sub.add_parser("list-keys", help="List issued keys").set_defaults(func=cmd_list_keys)
